@@ -1,0 +1,266 @@
+// ===== BACKEND (server.js) =====
+const express = require("express");
+const app = express();
+const http = require("http").createServer(app);
+const io = require("socket.io")(http);
+const bodyParser = require("body-parser");
+const fs = require("fs");
+const path = require("path");
+
+const DATA_FILE = "bolt_data.json";
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, "public")));
+app.use(bodyParser.json());
+
+// Initial structure for multiple bins
+let binData = {
+  bin1: {
+    itemCode: "BLT-2023-A1",
+    location: "Assembly Line A - Station 1",
+    currentCount: 50,
+    totalCount: 300,
+  },
+  bin2: {
+    itemCode: "BLT-2023-B2",
+    location: "Assembly Line B - Station 3",
+    currentCount: 150,
+    totalCount: 300,
+  },
+  bin3: {
+    itemCode: "BLT-2023-C3",
+    location: "Assembly Line C - Station 2",
+    currentCount: 300,
+    totalCount: 300,
+  },
+};
+
+// Load previous bin data
+if (fs.existsSync(DATA_FILE)) {
+  try {
+    binData = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    console.log("🔄 Loaded saved bin data");
+  } catch (err) {
+    console.error("❌ Error loading saved bin data", err);
+  }
+}
+
+// Save to file
+function saveBinData() {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(binData, null, 2));
+}
+
+// ESP32 POST update
+app.post("/update", (req, res) => {
+  const { binId, itemCode, location, currentCount, totalCount } = req.body;
+
+  if (!binId || !binData[binId]) {
+    return res.status(400).json({ error: "Invalid binId" });
+  }
+
+  const bin = binData[binId];
+
+  bin.itemCode = itemCode || bin.itemCode;
+  bin.location = location || bin.location;
+  bin.currentCount = currentCount;
+  bin.totalCount = totalCount || bin.totalCount;
+
+  saveBinData();
+  io.emit("updateBinData", { binId, data: bin });
+
+  res.json({ success: true });
+});
+
+// WebSocket
+io.on("connection", (socket) => {
+  console.log("✅ Client connected");
+  socket.emit("initialBinData", binData);
+});
+
+http.listen(3000, () => {
+  console.log("🚀 Server running on http://localhost:3000");
+});
+
+// ===== FRONTEND (App.js) =====
+import "bootstrap/dist/css/bootstrap.min.css";
+import Container from "react-bootstrap/Container";
+import Summary from "./components/Summary";
+import Bin from "./components/Bin";
+import RecentActivity from "./components/RecentActivity";
+import Footer from "./components/Footer";
+
+function App() {
+  return (
+    <div className="App">
+      <Container fluid className="bg-light min-vh-100 p-0">
+        <Container fluid className="w-100">
+          <header className="bg-primary text-white p-4 rounded">
+            <h1 className="h4">
+              Car Assembly Plant - Bolt Inventory Dashboard
+            </h1>
+            <p className="small">Real-time Monitoring System</p>
+          </header>
+
+          {/* Summary section */}
+          <div className="mt-4">
+            <Summary />
+          </div>
+
+          {/* Bin Section */}
+          <div className="mt-5 px-2">
+            <Bin />
+          </div>
+
+          {/* Activity Section */}
+          <div className="mt-4 px-2">
+            <RecentActivity />
+          </div>
+
+          {/* Footer Section */}
+          <div>
+            <Footer />
+          </div>
+        </Container>
+      </Container>
+    </div>
+  );
+}
+
+export default App;
+
+// ===== COMPONENT: Bin.js =====
+import { useEffect, useState } from "react";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
+import Card from "react-bootstrap/Card";
+import ProgressBar from "react-bootstrap/ProgressBar";
+import Button from "react-bootstrap/Button";
+import io from "socket.io-client";
+
+const socket = io();
+
+function getStatus(count, threshold) {
+  if (count < threshold) return "Critical";
+  if (count < threshold * 1.5) return "Warning";
+  return "Optimal";
+}
+
+const Bin = () => {
+  const [bins, setBins] = useState({});
+
+  useEffect(() => {
+    socket.on("initialBinData", (data) => setBins(data));
+    socket.on("updateBinData", ({ binId, data }) => {
+      setBins((prev) => ({ ...prev, [binId]: data }));
+    });
+  }, []);
+
+  return (
+    <Row xs={1} md={3} className="g-3">
+      {Object.entries(bins).map(([binId, bin], idx) => {
+        const status = getStatus(bin.currentCount, 100);
+        const variant =
+          status === "Critical"
+            ? "danger"
+            : status === "Warning"
+            ? "warning"
+            : "success";
+
+        return (
+          <Col key={binId}>
+            <Card className="h-100">
+              <Card.Body>
+                <Card.Title>
+                  Bin #{idx + 1}{" "}
+                  <span
+                    className={`badge bg-${variant} float-end`}
+                    style={{ fontSize: "0.75rem" }}
+                  >
+                    {status}
+                  </span>
+                </Card.Title>
+                <div className="mb-2">
+                  <strong>Item Code:</strong> {bin.itemCode}
+                  <br />
+                  <strong>Location:</strong> {bin.location}
+                  <br />
+                  <strong>Current Count:</strong>{" "}
+                  <span className={`text-${variant}`}>{bin.currentCount}</span>
+                  <br />
+                  <small className="text-muted">
+                    Minimum threshold: 100
+                  </small>
+                </div>
+                <ProgressBar
+                  now={(bin.currentCount / bin.totalCount) * 100}
+                  variant={variant}
+                  className="mb-2"
+                />
+                <Button
+                  variant="primary"
+                  className="w-100"
+                  disabled={status === "Optimal"}
+                >
+                  {status === "Optimal" ? "No Refill Needed" : "Mark as Refilled"}
+                </Button>
+              </Card.Body>
+            </Card>
+          </Col>
+        );
+      })}
+    </Row>
+  );
+};
+
+export default Bin;
+
+// ===== COMPONENT: Summary.js =====
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
+import Card from "react-bootstrap/Card";
+import { useEffect, useState } from "react";
+import io from "socket.io-client";
+
+const socket = io();
+
+const Summary = () => {
+  const [bins, setBins] = useState({});
+
+  useEffect(() => {
+    socket.on("initialBinData", (data) => setBins(data));
+    socket.on("updateBinData", ({ binId, data }) => {
+      setBins((prev) => ({ ...prev, [binId]: data }));
+    });
+  }, []);
+
+  const summary = [
+    { description: "Total bins", count: Object.keys(bins).length },
+    {
+      description: "Low Stock Alerts",
+      count: Object.values(bins).filter((b) => b.currentCount < 100).length,
+    },
+    {
+      description: "Refills in Progress",
+      count: Object.values(bins).filter(
+        (b) => b.currentCount < b.totalCount && b.currentCount >= 100
+      ).length,
+    },
+  ];
+
+  return (
+    <Row xs={1} sm={2} md={3} className="g-3">
+      {summary.map((item, idx) => (
+        <Col key={idx}>
+          <Card className="h-100 text-center">
+            <Card.Body>
+              <Card.Title>{item.description}</Card.Title>
+              <h2>{item.count}</h2>
+            </Card.Body>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+};
+
+export default Summary;
