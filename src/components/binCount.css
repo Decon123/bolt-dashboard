@@ -1,0 +1,21 @@
+.boltCountParent {
+  position: relative;
+  box-sizing: border-box;
+}
+
+.boltCount {
+  position: absolute;
+  right: 0;
+  top: -30px;
+  background-color: #2596be;
+  color: #fff;
+  font-weight: bold;
+  font-size: 2.2rem;
+  width: 80px; /* Equal width and height */
+  height: 80px;
+  display: flex; /* Center content */
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%; /* Perfect circle */
+  box-sizing: border-box;
+}
