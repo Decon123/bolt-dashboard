@@ -1,20 +1,18 @@
 {
-  "BIN-B2": {
-    "boltCount": 29,
-    "partNumber": "PN-39005",
-    "locationCode": "BIN-B2",
-    "lastUpdate": "2025-05-09T12:16:16.528Z"
+  "2843603": {
+    "chipID": "2843603",
+    "boltCount": 0,
+    "partNumber": "M2 nuts",
+    "locationCode": "BIN saniru",
+    "boltWeight": 5,
+    "lastUpdate": "2025-05-22T10:54:26.091Z"
   },
-  "BIN-A1": {
-    "boltCount": 10,
-    "partNumber": "PN-45078",
-    "locationCode": "BIN-A1",
-    "lastUpdate": "2025-05-09T12:17:49.722Z"
-  },
-  "BIN-C3": {
-    "boltCount": 8,
-    "partNumber": "PN-67590",
-    "locationCode": "BIN-C3",
-    "lastUpdate": "2025-05-09T12:17:03.436Z"
+  "5363479": {
+    "chipID": "5363479",
+    "boltCount": 0,
+    "partNumber": "M10 bolts ",
+    "locationCode": "BIN-decon",
+    "boltWeight": 7,
+    "lastUpdate": "2025-05-23T03:42:27.234Z"
   }
 }
